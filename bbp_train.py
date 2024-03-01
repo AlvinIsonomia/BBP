@@ -24,7 +24,8 @@ from dataloader_ranking import get_bbp_set, get_pointwise_set
 batch_size = 256
 base_lr = 1e-3 * batch_size / 256
 weight_decay = 1e-5
-num_epoch = 50
+num_epoch = 10
+loss_lambda = 0.5 
 
 # dataset and dataloader
 # training, validation, testing dataset
@@ -92,7 +93,7 @@ for epoch in range(num_epoch):
         with tf.GradientTape() as tape:
             pred = model(feature_matrix)
             pred = tf.nn.sigmoid(pred) + 1e-9
-            loss = tf.reduce_mean(rank_loss(pred, score_list)) + tf.keras.losses.BinaryCrossentropy()(label_list, pred)
+            loss = tf.reduce_mean(rank_loss(pred, score_list)) * (1 - loss_lambda) + tf.keras.losses.BinaryCrossentropy()(label_list, pred) * loss_lambda
 
         grads = tape.gradient(loss, model.trainable_variables)
         grads = [tf.clip_by_norm(grad, 5) for grad in grads]
@@ -107,6 +108,9 @@ for epoch in range(num_epoch):
         if iter % 100 == 0:
             tqdm.write("Epoch: {}, loss: {:.4f}, acc: {:.4f}, auc: {:.4f}".format(epoch, loss_meter.avg, acc_meter.avg, auc_meter.avg))
             # validation
+            val_loss_meter.reset()
+            val_acc_meter.reset()
+            val_auc_meter.reset()            
             for (user_id_list, item_id_list, label_list, feature_matrix) in valset:
                 pred = model(feature_matrix)
                 pred = tf.nn.sigmoid(pred)
